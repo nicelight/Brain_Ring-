@@ -1,5 +1,6 @@
 <a id="anchor"></a>
-<p align="center"> # Brain_Ring </p>
+<h1 align="center"> Brain_Ring </h1>
+
 ### Проект игровой комнаты. 
 вопросы можно задать автору проета в [телеграм](https://t.me/nicelightio)
 
