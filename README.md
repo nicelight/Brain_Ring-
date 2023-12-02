@@ -42,14 +42,7 @@ API потолка, основанного на WLED [примтивный GET](
   
 ## INSTALLATION
 
-1. i
-2. n
-3. s
-4. t
-5. a
-6. l
-7. l
-8. Подключение лент 
+1. Подключение лент 
 ![Подключение лент](/left_right_buttons/GyverPanelWiFi-master/schemes/scheme1.jpg)
 
 
