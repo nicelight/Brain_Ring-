@@ -80,7 +80,9 @@ API потолка, основанного на WLED [примтивный GET](
 - затвор - GPIO25
   1.2 Прошивка
   Переходим на [сайт прошивки](https://wled-install.github.io/) В выпадающем списке Board type\software version выбираем
-  **Sound reactive version: Nightly build (build ver 0.13.4** ) 
+
+  **Sound reactive version: Nightly build (build ver 0.13.4** )
+  
       ESP32(4MB Flsah:....... disabled, no Usermods included)
 жмем синюю кнопку I agree
 подключаем esp32 контроллер с зажатой кнопкой BOOT на контроллере к гнезду USB в компьютере 
