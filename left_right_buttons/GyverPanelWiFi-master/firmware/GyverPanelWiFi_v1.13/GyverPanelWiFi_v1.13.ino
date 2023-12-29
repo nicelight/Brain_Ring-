@@ -534,7 +534,58 @@ void loop() {
   }
 
   process();
-}
+
+  //Brain Ring
+  // автомат обработки нажатия на кнопку с отправкой udp пакета 
+  uint32_t butMs = millis();
+  switch (button_proc) {
+    case INIT:
+      prevButMs = butMs;
+      butDel = 10; // задержка входа в тело кейса
+      butCounter = 0; // счетчик периодических входов в один и тот же кейс
+      button_proc = BUTCHECK;
+      break;
+    case BUTCHECK:
+      // проверяем сигнал нажатия на кнопку каждых 10 мс
+      // если активный сигнал на кнопке пойман более 5 раз подряд, считаем что нажатие = TRUE
+      if ((butMs - prevButMs) > butDel) {
+        prevButMs = butMs;
+        if (!digitalRead(BIG_BUTTON)) butCounter++;
+        else butCounter = 0;
+        if (butCounter >= 5) { // нажатие кнопки = TRUE
+          butCounter = 0;
+          button_proc = SENDUDP;
+        }
+      }//if ms
+      break;
+    case SENDUDP:
+        // отправляем 3 раза UDP пакет через каждых 50 ms
+        if ((butMs - prevButMs) > butDel) {
+        if (butCounter < 3) {
+            prevButMs = butMs; // чтобы следующий кейс выполнился сразу, обнуляем prevButMs внутри if counter
+            butDel = 50;
+            sendUDPtoBrainRing(); //отправляем пакет "B 203" по UDP
+            butCounter++;
+          } else button_proc = BUTUNHOLD;
+        }//if ms
+      break;
+    case BUTUNHOLD:
+        // проверяем сигнал отпущенной кнопки каждых 20 мс
+        // если активный сигнал на кнопке пойман более 5 раз подряд, считаем что отпускание = TRUE
+        if ((butMs - prevButMs) > butDel) {
+        prevButMs = butMs;
+        butDel = 20; // надо тут
+        if (digitalRead(BIG_BUTTON)) butCounter++;
+          else butCounter = 0;
+          if (butCounter >= 5) { // отпускание кнопки = TRUE
+            butCounter = 0;
+            button_proc = INIT;
+          }
+        }//if ms
+      break;
+  }//switch(button_proc)
+
+}//loop()
 
 // -----------------------------------------
 
