@@ -1,8 +1,7 @@
 // for OTA go 
 // http://192.168.3.201/ota_update
 // the file firmware.bin is here 
-// C:\Users\Acer\Documents\PlatformIO\Projects\BrainRing_hand\.pio\build\esp32doit-devkit-v1
-
+// D:\nicelight_HDD_2021\projects\brainRing_NSK\BrainRing_hand\.pio\build\esp32doit-devkit-v1
 
 #include <WiFi.h>
 #include <WiFiAP.h>
@@ -59,7 +58,6 @@ CRGBArray<NUM_LEDS> leds;
 // Подключем библиотеки
 #include <WiFiClient.h>
 #include <GyverPortal.h>
-#include "custom.h"
 #include <LittleFS.h>
 GyverPortal ui(&LittleFS); // для проверки файлов
 
@@ -109,7 +107,7 @@ struct Settings {
   uint32_t AnswerReactDelay = 4000; // время отрисовки реакции на прав\неправ ответ 
   uint32_t FanfariDelay = 4000; // отрисовка фанфар
   uint32_t gameOverDelay = 3000; // отрисовка финальных салютов
-
+  uint32_t buttonsDisabled = 3000; // отрисовка нажатия на кнопку какой либо команды
   ////////////// тонкие настройки игры
   // ========= ИГРА ===========================
   // ===============
@@ -207,7 +205,8 @@ enum {
   STARTDEL,
   ROUND,
   ROUNDAWAIT,
-  ANSWER,
+  ANSWERED_DEL,
+  RIGHTANSWER,
   ANSWERRESULTDEL,
   FANFARE,
   FANFAREDEL,
@@ -219,8 +218,9 @@ enum {
 uint32_t gameMs = 0;
 bool gameIs = 0; //если игра запущена = 1
 bool buttonsAllowed = 0; // флаг разрешения принятия нажатий кнопок
+bool areWin = 0; // 1 команда ответила правильно
 uint16_t whatButton = 0; // флаг 203 или 204 смотря кто нажал кнопку ( инфа прилетает с UDP)
-uint8_t areWin = 0; // 1 команда выиграла, 2 команда проиграла. 0 - нет ответа
+// bool areWin = 0; // 1 команда выиграла, 2 команда проиграла. 0 - нет ответа
 uint8_t pointsOf203 = 0, pointsOf204 = 0; // чет в игре 
 String strUdp = " "; // для отправки UDP запроса
 String strGET = " "; // для формирования GET запроса
@@ -445,7 +445,7 @@ void sendParamGET(uint8_t type, uint16_t param) {
   case 2:
     GETData += "PL=" + String(param);
     break;
-    }
+  }
   // GETData = GET_ServerAddress + GETData;
 #ifdef HTTPDEBUG
   Serial.print("\n sending param GET: ");
@@ -831,7 +831,12 @@ void webPageBuild() {
 
     GP.BLOCK_BEGIN(GP_TAB, "", "Обновить прошивку по wifi ", GP_RED);
     GP.BREAK();
-    GP_TEXT_HREF("/ota_update", "здесь");
+    // GP_TEXT_HREF("/ota_update", "здесь");
+    String s;
+    s += F("<a href='/ota_update'>здесь</a>");
+    GP.SEND(s);
+
+
     GP.BREAK();
     GP.BLOCK_END();
     GP.BREAK();
@@ -991,7 +996,8 @@ void webPageBuild() {
     GP.BREAK();
     GP.BREAK();
     GP.LABEL("правильный ответ?: ");
-    M_BOX(GP.BUTTON("AnswerNo", "НЕТ", "", "#c27d4c"); GP.BUTTON("AnswerYes", "ДА", "", "#f0863a"););
+    // M_BOX(GP.BUTTON("AnswerNo", "НЕТ", "", "#c27d4c"); GP.BUTTON("AnswerYes", "ДА", "", "#f0863a"););
+    M_BOX(GP.BUTTON("team203right", "Правы 203"); GP.BUTTON("team204right", "Правы 204"););
     GP.BREAK();
     GP.BREAK();
     GP.BREAK();
@@ -1011,7 +1017,7 @@ void webPageBuild() {
     //============ вкладка ДИСКОТЕКА =====================
     GP.NAV_BLOCK_BEGIN("nav1", 2);
     GP.BREAK();
-    
+
     GP.BLOCK_BEGIN(GP_TAB);
     GP.LABEL("Эффекты потолка");
     GP.HR();
@@ -1042,7 +1048,7 @@ void webPageBuild() {
 
     GP.BREAK();
     GP.BREAK();
-    
+
     GP.BLOCK_BEGIN(GP_TAB);
     GP.LABEL("Эффекты Кнопок");
     GP.HR();
@@ -1088,6 +1094,10 @@ void webPageBuild() {
     GP.NUMBER("uiStartGameDelay", "number", sett.StartGameDelay);
     GP.LABEL(" мс");
     GP.BREAK();
+    GP.LABEL(" Нажатая кнопка");
+    GP.NUMBER("uiButtonsDisabled", "number", sett.buttonsDisabled);
+    GP.LABEL(" мс");
+    GP.BREAK();
     GP.LABEL(" Правильный ответ");
     GP.NUMBER("uiAnswerReactDelay", "number", sett.AnswerReactDelay);
     GP.LABEL(" мс");
@@ -1097,6 +1107,7 @@ void webPageBuild() {
     GP.BREAK();
     GP.LABEL("Победные салюты");
     GP.LABEL(" 3 раза по: ");
+    GP.NUMBER("uigameOverDelay", "number", sett.gameOverDelay);
     GP.NUMBER("uigameOverDelay", "number", sett.gameOverDelay);
     GP.LABEL(" мс");
     GP.BREAK();
@@ -1371,11 +1382,13 @@ void webPageAction() {
       allowHand = 0; // запретим прикладывать руку
       game_proc = START;
     }
-    if (ui.click("AnswerYes")) {
+    if (ui.click("team204right")) {
       areWin = 1; // правильный ответ
+      whatButton = 204;
     }
-    if (ui.click("AnswerNo")) {
-      areWin = 2;  // не правильный ответ
+    if (ui.click("team203right")) {
+      areWin = 1;  // не правильный ответ
+      whatButton = 203;
     }
     if (ui.click("Fanfars")) {
       game_proc = FANFARE;  //рекламная пауза
@@ -1493,6 +1506,7 @@ void webPageAction() {
     if (ui.clickInt("uiAnswerReactDelay", sett.AnswerReactDelay))  memory.updateNow();
     if (ui.clickInt("uiFanfariDelay", sett.FanfariDelay))  memory.updateNow();
     if (ui.clickInt("uigameOverDelay", sett.gameOverDelay))  memory.updateNow();
+    if (ui.clickInt("uiButtonsDisabled", sett.buttonsDisabled))  memory.updateNow();
 
     ////////// тонкие настройки игры 
     // Потолок обновляем в память параметры игры
@@ -1659,7 +1673,9 @@ void parseUdpMsg() {
       int index = cmd.indexOf("button");
       if (index > 0) {
         cmd = cmd.substring(index + 6, index + 9); //обрежем, чтобы получить 203 или 204 
-        if (buttonsAllowed) whatButton = cmd.toInt();   // получаем 203 или 204 
+        if (buttonsAllowed) {
+          whatButton = cmd.toInt();   // получаем 203 или 204
+        }
 #ifdef UDPDEBUG
         Serial.print("start index of command \'button\': ");
         Serial.println(index);
@@ -2190,134 +2206,144 @@ void loop() {
     // //потолок белый
     // sendParamGET(1, sett.Roof_round_dim);
     sendParamGET(2, sett.Roof_round_ef);
-    whatButton = 0; // обнуляем флаг - кто первый нажал
+    whatButton = 0; // кто именно нажал
     buttonsAllowed = 1; // разрешаем нажатия на кнопки 
+    areWin = 0; // сброс флага ответа от тамады
     gameMs = ms;
     game_proc = ROUNDAWAIT;
     break;
 
     //  + String(sett.Btn203_round_par) + ";"
 
-  // проверять значения отсюда и ниже 
+  // ждем нажатия на кнопку
   case ROUNDAWAIT:
     //пришло нажатие от 203 или 204
-    if (whatButton == 203) {
-      //мигнем поярче моноцветом
-      strUdp = "$4 0 200;";  //  яркость
-      sendStringUDP(whatButton, strUdp);
-      strUdp = "$8 0 1;"; // моноцвет - FLASH
-      sendStringUDP(whatButton, strUdp);
-      delay(50);
-      for (uint8_t i = 0; i < 2; i++) {
-        // strUdp = "$4 0 150;";  //  яркость
-        strUdp = "$4 0 " + String(sett.Btn203_answer_dim) + ";";  //  яркость
+    if (whatButton) {
+      if (whatButton == 203) {
+        //мигнем поярче моноцветом
+        strUdp = "$4 0 200;";  //  яркость
         sendStringUDP(whatButton, strUdp);
-        delay(20);
-        // strUdp = "$8 0 6;";  //  эффект Огонь
-        strUdp = "$8 0 " + String(sett.Btn203_answer_ef) + ";";  //  эффект Огонь
+        strUdp = "$8 0 1;"; // моноцвет - FLASH
         sendStringUDP(whatButton, strUdp);
         delay(50);
-      }
-      // strcpy(GETparamCHAR, "PL=31");
-      // //отправляем на потолок
-      // sendParamGET(1, sett.Roof_Answer_dim);   // 1 -- A=xxx, 2 -- PL=xxx
-      sendParamGET(2, sett.Roof_203Answer_ef);    // 
-      buttonsAllowed = 0; // кнопки не реагируют до след раунда
-      areWin = 0; // новое ожидание ответа ведущего
-      gameMs = ms;
-      game_proc = ANSWER;
-    }
-    // нажатие от 204
-    else if (whatButton == 204) {
-      //мигнем поярче моноцветом
-      strUdp = "$4 0 200;";  //  яркость
-      sendStringUDP(whatButton, strUdp);
-      strUdp = "$8 0 1;"; // моноцвет - FLASH
-      sendStringUDP(whatButton, strUdp);
-      delay(50);
-      for (uint8_t i = 0; i < 2; i++) {
-        // strUdp = "$4 0 150;";  //  яркость
-        strUdp = "$4 0 " + String(sett.Btn204_answer_dim) + ";";  //  яркость
+        for (uint8_t i = 0; i < 2; i++) {
+          // strUdp = "$4 0 150;";  //  яркость
+          strUdp = "$4 0 " + String(sett.Btn203_answer_dim) + ";";  //  яркость
+          sendStringUDP(whatButton, strUdp);
+          delay(20);
+          // strUdp = "$8 0 6;";  //  эффект Огонь
+          strUdp = "$8 0 " + String(sett.Btn203_answer_ef) + ";";  //  эффект Огонь
+          sendStringUDP(whatButton, strUdp);
+          delay(50);
+        }
+        // //отправляем на потолок
+        sendParamGET(2, sett.Roof_203Answer_ef);    // 1 -- A=xxx, 2 -- PL=xxx
+      }//if 203
+      // нажатие от 204
+      else if (whatButton == 204) {
+        //мигнем поярче моноцветом
+        strUdp = "$4 0 200;";  //  яркость
         sendStringUDP(whatButton, strUdp);
-        delay(20);
-        // strUdp = "$8 0 6;";  //  эффект Огонь
-        strUdp = "$8 0 " + String(sett.Btn204_answer_ef) + ";";  //  эффект Огонь
+        strUdp = "$8 0 1;"; // моноцвет - FLASH
         sendStringUDP(whatButton, strUdp);
         delay(50);
-      }
-      // strcpy(GETparamCHAR, "PL=41");
-    // //отправляем на потолок
-      // sendParamGET(1, sett.Roof_Answer_dim);   // 1 -- A=xxx, 2 -- PL=xxx
-      sendParamGET(2, sett.Roof_204Answer_ef);    // 
-      buttonsAllowed = 0; // кнопки не реагируют до след раунда
+        for (uint8_t i = 0; i < 2; i++) {
+          // strUdp = "$4 0 150;";  //  яркость
+          strUdp = "$4 0 " + String(sett.Btn204_answer_dim) + ";";  //  яркость
+          sendStringUDP(whatButton, strUdp);
+          delay(20);
+          // strUdp = "$8 0 6;";  //  эффект Огонь
+          strUdp = "$8 0 " + String(sett.Btn204_answer_ef) + ";";  //  эффект Огонь
+          sendStringUDP(whatButton, strUdp);
+          delay(50);
+        }
+        // //отправляем на потолок
+        sendParamGET(2, sett.Roof_204Answer_ef);    // 1 -- A=xxx, 2 -- PL=xxx 
+      }//if 204
+      whatButton = 0; // чтобы снова не прорисовывать эффект нажатия
+      buttonsAllowed = 0; // кнопки не реагируют  установленное время
       areWin = 0; // новое ожидание ответа ведущего
       gameMs = ms;
-      game_proc = ANSWER;
+      game_proc = ANSWERED_DEL;
+    }//whatButton
+    // если тамада нажал "Правы 203" или "Правы 204"
+    else if (areWin) {
+      gameMs = ms;
+      game_proc = RIGHTANSWER;
     }
     break;
 
-  case ANSWER:
-    if (areWin == 1) { // дали ПРАВильный ответ
-      if (whatButton == 203) {
-        pointsOf203++; // добавим одно очко команде
-        for (uint8_t i = 0; i < 2; i++) {
-          // strUdp = "$4 0 250;";  //  яркость 
-          strUdp = "$4 0 " + String(sett.Btn203_trues_dim) + ";";  //  яркость 
-          sendStringUDP(whatButton, strUdp);
-          delay(20);
-          // strUdp = "$8 0 19;";  // переливы 203их
-          strUdp = "$8 0 " + String(sett.Btn203_trues_ef) + ";";  // переливы 203их
-          sendStringUDP(whatButton, strUdp);
-          delay(50);
-        }
-        // на потолок
-        // strcpy(GETparamCHAR, "PL=32");
-        // sendParamGET(1, sett.Roof_trues_dim);   // 1 -- A=xxx, 2 -- PL=xxx
-        sendParamGET(2, sett.Roof_203trues_ef);    // 
-      } else if (whatButton == 204) {
-        // правильно ответили 204ые
-        pointsOf204++; // добавим одно очко команде
-        for (uint8_t i = 0; i < 2; i++) {
-          // strUdp = "$4 0 250;";  //  яркость 
-          strUdp = "$4 0 " + String(sett.Btn204_trues_dim) + ";";  //  яркость 
-          sendStringUDP(whatButton, strUdp);
-          delay(20);
-          // strUdp = "$8 0 13;";  // переливы 204ых
-          strUdp = "$8 0 " + String(sett.Btn204_trues_ef) + ";";  // переливы 204ых
-          sendStringUDP(whatButton, strUdp);
-          delay(50);
-        }
-        // потолок
-        // strcpy(GETparamCHAR, "PL=42");
-        // sendParamGET(1, sett.Roof_trues_dim);   // 1 -- A=xxx, 2 -- PL=xxx
-        sendParamGET(2, sett.Roof_204trues_ef);    // 
-      }
+    // ожидаем отрисовку нажатой кнопки
+  case ANSWERED_DEL:
+    // ждем пока отиграет эффект нажатой кнопки 
+    if ((ms - gameMs) > sett.buttonsDisabled) {
       gameMs = ms;
-      game_proc = ANSWERRESULTDEL;
-    }//(areWin == 1)
-    //дали НЕ ПРАВильный ответ
-    else if (areWin == 2) {
-      if (whatButton == 203) {
-        for (uint8_t i = 0; i < 2; i++) {
-          // strUdp = "$8 0 35;";  // снег 203их
-          strUdp = "$8 0 " + String(sett.Btn_false_ef) + ";";  // снег 203их
-          sendStringUDP(whatButton, strUdp);
-          delay(50);
-        }
-      } else if (whatButton == 204) {
-        for (uint8_t i = 0; i < 2; i++) {
-          // strUdp = "$8 0 35;";  // снег 204ых
-          strUdp = "$8 0 " + String(sett.Btn_false_ef) + ";";  // снег 204ых
-          sendStringUDP(whatButton, strUdp);
-          delay(50);
-        }
+      whatButton = 0; // никакая кнопка не активна
+      buttonsAllowed = 1; // разрешим
+      game_proc = ROUNDAWAIT;
+    }
+    break;
+
+  case RIGHTANSWER:
+    if (whatButton == 203) {
+      pointsOf203++; // добавим одно очко команде
+      for (uint8_t i = 0; i < 2; i++) {
+        // strUdp = "$4 0 250;";  //  яркость 
+        strUdp = "$4 0 " + String(sett.Btn203_trues_dim) + ";";  //  яркость 
+        sendStringUDP(whatButton, strUdp);
+        delay(20);
+        // strUdp = "$8 0 19;";  // переливы 203их
+        strUdp = "$8 0 " + String(sett.Btn203_trues_ef) + ";";  // переливы 203их
+        sendStringUDP(whatButton, strUdp);
+        delay(50);
       }
-      //на потолок не верный ответ
-      // sendParamGET(1, sett.Roof_false_dim);   // 1 -- A=xxx, 2 -- PL=xxx
-      sendParamGET(2, sett.Roof_false_ef);    // 
-      gameMs = ms;
-      game_proc = ANSWERRESULTDEL;
-    }//(areWin == 2)
+      // на потолок
+      sendParamGET(2, sett.Roof_203trues_ef);          // 1 -- A=xxx, 2 -- PL=xxx
+    } else if (whatButton == 204) {
+      // правильно ответили 204ые
+      pointsOf204++; // добавим одно очко команде
+      for (uint8_t i = 0; i < 2; i++) {
+        // strUdp = "$4 0 250;";  //  яркость 
+        strUdp = "$4 0 " + String(sett.Btn204_trues_dim) + ";";  //  яркость 
+        sendStringUDP(whatButton, strUdp);
+        delay(20);
+        // strUdp = "$8 0 13;";  // переливы 204ых
+        strUdp = "$8 0 " + String(sett.Btn204_trues_ef) + ";";  // переливы 204ых
+        sendStringUDP(whatButton, strUdp);
+        delay(50);
+      }
+      // потолок
+      sendParamGET(2, sett.Roof_204trues_ef);    // 1 -- A=xxx, 2 -- PL=xxx 
+    }
+    gameMs = ms;
+    game_proc = ANSWERRESULTDEL;
+    // //дали НЕ ПРАВильный ответ
+    // мы переиграли и теперь этого нету в логике игры
+    // теперь логика такая что после задержки на эффект нажатия на кнопку
+    // любая команда снова может нажимать и отвечать
+    //
+    // else if (areWin == 2) {
+    //   if (whatButton == 203) {
+    //     for (uint8_t i = 0; i < 2; i++) {
+    //       // strUdp = "$8 0 35;";  // снег 203их
+    //       strUdp = "$8 0 " + String(sett.Btn_false_ef) + ";";  // снег 203их
+    //       sendStringUDP(whatButton, strUdp);
+    //       delay(50);
+    //     }
+    //   } else if (whatButton == 204) {
+    //     for (uint8_t i = 0; i < 2; i++) {
+    //       // strUdp = "$8 0 35;";  // снег 204ых
+    //       strUdp = "$8 0 " + String(sett.Btn_false_ef) + ";";  // снег 204ых
+    //       sendStringUDP(whatButton, strUdp);
+    //       delay(50);
+    //     }
+    //   }
+    //   //на потолок не верный ответ
+    //   // sendParamGET(1, sett.Roof_false_dim);   // 1 -- A=xxx, 2 -- PL=xxx
+    //   sendParamGET(2, sett.Roof_false_ef);    // 
+    //   gameMs = ms;
+    //   game_proc = ANSWERRESULTDEL;
+    // }//(areWin == 2)
     break;
 
   case ANSWERRESULTDEL:
