@@ -997,7 +997,7 @@ void webPageBuild() {
     GP.BREAK();
     GP.LABEL("правильный ответ?: ");
     // M_BOX(GP.BUTTON("AnswerNo", "НЕТ", "", "#c27d4c"); GP.BUTTON("AnswerYes", "ДА", "", "#f0863a"););
-    M_BOX(GP.BUTTON("team203right", "203 Море", "", "#0e86e1"); GP.BUTTON("team204right", "Малинки 204", "", "#e10ec9"););
+    M_BOX(GP.BUTTON("team204right", " 204 ", "", "#e10ec9"); GP.BUTTON("team203right", " 203 ", "", "#0e86e1"););
     GP.BREAK();
     GP.BREAK();
     GP.BREAK();
