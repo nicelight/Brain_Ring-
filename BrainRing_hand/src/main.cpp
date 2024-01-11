@@ -997,7 +997,7 @@ void webPageBuild() {
     GP.BREAK();
     GP.LABEL("правильный ответ?: ");
     // M_BOX(GP.BUTTON("AnswerNo", "НЕТ", "", "#c27d4c"); GP.BUTTON("AnswerYes", "ДА", "", "#f0863a"););
-    M_BOX(GP.BUTTON("team203right", "Правы 203"); GP.BUTTON("team204right", "Правы 204"););
+    M_BOX(GP.BUTTON("team203right", "203 Море", "", "#0e86e1"); GP.BUTTON("team204right", "Малинки 204", "", "#e10ec9"););
     GP.BREAK();
     GP.BREAK();
     GP.BREAK();
@@ -1094,7 +1094,7 @@ void webPageBuild() {
     GP.NUMBER("uiStartGameDelay", "number", sett.StartGameDelay);
     GP.LABEL(" мс");
     GP.BREAK();
-    GP.LABEL(" Нажатая кнопка");
+    GP.LABEL(" Удержание нажатой кнопки");
     GP.NUMBER("uiButtonsDisabled", "number", sett.buttonsDisabled);
     GP.LABEL(" мс");
     GP.BREAK();
@@ -1107,7 +1107,6 @@ void webPageBuild() {
     GP.BREAK();
     GP.LABEL("Победные салюты");
     GP.LABEL(" 3 раза по: ");
-    GP.NUMBER("uigameOverDelay", "number", sett.gameOverDelay);
     GP.NUMBER("uigameOverDelay", "number", sett.gameOverDelay);
     GP.LABEL(" мс");
     GP.BREAK();
@@ -1710,7 +1709,7 @@ void setup() {
   // Инициируем последовательный порт
   Serial.begin(115200);
   EEPROM.begin(2000);  // выделить память (больше или равно размеру даты)
-  memory.begin(0, 'b');
+  memory.begin(0, 'c'); // изменить символ чтобы память переинициализировалась из скетча
   wifiInit();
   webUI_Init();
 
@@ -1751,37 +1750,35 @@ void loop() {
 
   // отладочка 
   static bool printIt = 1; // отладка вообще нужна?
-  static bool need_game_proc = 0; // отладка этого процесса нужна?
-  static bool need_hand_proc = 1; // отладка этого процесса нужна?ё
-  if (printIt && ((millis() - tmr >= 1000ul) || (prevhand_proc != hand_proc) || (prevhandCurrent != handCurrent))) {
+  if (printIt && ((millis() - tmr >= 1000ul))) {
     tmr = millis();
-    if ((need_game_proc) && (game_proc != prevgame_proc)) {
+    if (game_proc != prevgame_proc) {
       prevgame_proc = game_proc;
-      Serial.print("\t\t\t\t\t\t\t\t\t\tgame: ");
+      Serial.print("\t\t\t\t game: ");
       Serial.print(game_proc);
-      Serial.print(",\tbuttonsAllowed: ");
+      Serial.print(",\t buttonsAllowed: ");
       Serial.print(buttonsAllowed);
 
       Serial.print(",\t whatButton ");
       Serial.print(whatButton);
       Serial.print("\n");
     }//game_proc
-    if (need_hand_proc) { // если надокаждую секунду
-      prevhand_proc = hand_proc;
-      prevhandCurrent = handCurrent;
-      Serial.print(F("\t\t\t\t\t\thand: "));
-      Serial.print(hand_proc);
-      Serial.print(F(";\thandLevel: "));
-      Serial.print(handLevel);
-      Serial.print(F(",  gap: "));
-      Serial.print(sett.handLevel_gap);
-      Serial.print(F(",  cur: "));
-      Serial.print(handCurrent);
-      Serial.print(F(",  gotfromRoof: "));
-      Serial.print(getCurDim);
-      Serial.print("\n");
 
-    }//hand_proc
+      // // hand_proc
+      // prevhand_proc = hand_proc;
+      // prevhandCurrent = handCurrent;
+      // Serial.print(F("\t\t\t\t\t\thand: "));
+      // Serial.print(hand_proc);
+      // Serial.print(F(";\thandLevel: "));
+      // Serial.print(handLevel);
+      // Serial.print(F(",  gap: "));
+      // Serial.print(sett.handLevel_gap);
+      // Serial.print(F(",  cur: "));
+      // Serial.print(handCurrent);
+      // Serial.print(F(",  gotfromRoof: "));
+      // Serial.print(getCurDim);
+      // Serial.print("\n");
+
   }// ms
 
 
@@ -2217,8 +2214,13 @@ void loop() {
 
   // ждем нажатия на кнопку
   case ROUNDAWAIT:
+    //админ нажал кнопку правильного ответа
+    if (areWin) {
+      gameMs = ms;
+      game_proc = RIGHTANSWER;
+    }
     //пришло нажатие от 203 или 204
-    if (whatButton) {
+    else if (whatButton) {
       if (whatButton == 203) {
         //мигнем поярче моноцветом
         strUdp = "$4 0 200;";  //  яркость
@@ -2267,10 +2269,6 @@ void loop() {
       game_proc = ANSWERED_DEL;
     }//whatButton
     // если тамада нажал "Правы 203" или "Правы 204"
-    else if (areWin) {
-      gameMs = ms;
-      game_proc = RIGHTANSWER;
-    }
     break;
 
     // ожидаем отрисовку нажатой кнопки
@@ -2280,7 +2278,7 @@ void loop() {
       gameMs = ms;
       whatButton = 0; // никакая кнопка не активна
       buttonsAllowed = 1; // разрешим
-      game_proc = ROUNDAWAIT;
+      game_proc = ROUND;
     }
     break;
 
@@ -2317,33 +2315,6 @@ void loop() {
     }
     gameMs = ms;
     game_proc = ANSWERRESULTDEL;
-    // //дали НЕ ПРАВильный ответ
-    // мы переиграли и теперь этого нету в логике игры
-    // теперь логика такая что после задержки на эффект нажатия на кнопку
-    // любая команда снова может нажимать и отвечать
-    //
-    // else if (areWin == 2) {
-    //   if (whatButton == 203) {
-    //     for (uint8_t i = 0; i < 2; i++) {
-    //       // strUdp = "$8 0 35;";  // снег 203их
-    //       strUdp = "$8 0 " + String(sett.Btn_false_ef) + ";";  // снег 203их
-    //       sendStringUDP(whatButton, strUdp);
-    //       delay(50);
-    //     }
-    //   } else if (whatButton == 204) {
-    //     for (uint8_t i = 0; i < 2; i++) {
-    //       // strUdp = "$8 0 35;";  // снег 204ых
-    //       strUdp = "$8 0 " + String(sett.Btn_false_ef) + ";";  // снег 204ых
-    //       sendStringUDP(whatButton, strUdp);
-    //       delay(50);
-    //     }
-    //   }
-    //   //на потолок не верный ответ
-    //   // sendParamGET(1, sett.Roof_false_dim);   // 1 -- A=xxx, 2 -- PL=xxx
-    //   sendParamGET(2, sett.Roof_false_ef);    // 
-    //   gameMs = ms;
-    //   game_proc = ANSWERRESULTDEL;
-    // }//(areWin == 2)
     break;
 
   case ANSWERRESULTDEL:
