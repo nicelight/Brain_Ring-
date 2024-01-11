@@ -142,6 +142,8 @@ void setup() {
   pinMode(BIG_BUTTON, INPUT_PULLUP);
   pinMode(BIG_BUTTON_GROUND, OUTPUT);
   digitalWrite(BIG_BUTTON_GROUND, 0);
+  pinMode(LED_BIG_BUTTON, OUTPUT);
+  digitalWrite(LED_BIG_BUTTON , 0);
 #if defined(ESP8266)
   ESP.wdtEnable(WDTO_8S);
 #endif
@@ -536,13 +538,14 @@ void loop() {
   process();
 
   //Brain Ring
-  // автомат обработки нажатия на кнопку с отправкой udp пакета 
+  // автомат обработки нажатия на кнопку с отправкой udp пакета
   uint32_t butMs = millis();
   switch (button_proc) {
     case INIT:
       prevButMs = butMs;
       butDel = 10; // задержка входа в тело кейса
       butCounter = 0; // счетчик периодических входов в один и тот же кейс
+      digitalWrite(LED_BIG_BUTTON , 0);
       button_proc = BUTCHECK;
       break;
     case BUTCHECK:
@@ -554,37 +557,79 @@ void loop() {
         else butCounter = 0;
         if (butCounter >= 5) { // нажатие кнопки = TRUE
           butCounter = 0;
+          digitalWrite(LED_BIG_BUTTON , 1);
           button_proc = SENDUDP;
         }
       }//if ms
       break;
     case SENDUDP:
-        // отправляем 3 раза UDP пакет через каждых 50 ms
-        if ((butMs - prevButMs) > butDel) {
+      // отправляем 3 раза UDP пакет через каждых 50 ms
+      if ((butMs - prevButMs) > butDel) {
         if (butCounter < 3) {
-            prevButMs = butMs; // чтобы следующий кейс выполнился сразу, обнуляем prevButMs внутри if counter
-            butDel = 50;
-            sendUDPtoBrainRing(); //отправляем пакет "B 203" по UDP
-            butCounter++;
-          } else button_proc = BUTUNHOLD;
-        }//if ms
+          prevButMs = butMs; // чтобы следующий кейс выполнился сразу, обнуляем prevButMs внутри if counter
+          butDel = 50;
+          sendUDPtoBrainRing(); //отправляем пакет "B 203" по UDP
+          butCounter++;
+        } else button_proc = BUTUNHOLD;
+      }//if ms
       break;
     case BUTUNHOLD:
-        // проверяем сигнал отпущенной кнопки каждых 20 мс
-        // если активный сигнал на кнопке пойман более 5 раз подряд, считаем что отпускание = TRUE
-        if ((butMs - prevButMs) > butDel) {
+      // проверяем сигнал отпущенной кнопки каждых 20 мс
+      // если активный сигнал на кнопке пойман более 5 раз подряд, считаем что отпускание = TRUE
+      if ((butMs - prevButMs) > butDel) {
         prevButMs = butMs;
         butDel = 20; // надо тут
         if (digitalRead(BIG_BUTTON)) butCounter++;
-          else butCounter = 0;
-          if (butCounter >= 5) { // отпускание кнопки = TRUE
-            butCounter = 0;
-            button_proc = INIT;
-          }
-        }//if ms
+        else butCounter = 0;
+        if (butCounter >= 5) { // отпускание кнопки = TRUE
+          butCounter = 0;
+          button_proc = INIT;
+        }
+      }//if ms
       break;
   }//switch(button_proc)
 
+  // отрисовка мигания кнопкой
+  // мигаем 5 сек, т.е. 16 раз раз по 200+100 мс
+  switch (ledblinkbut) {
+    // INIT
+    case 0:
+      prevBlinkMs = butMs;
+      ledblinkbut = 5;
+      break;
+    // WAIT for flag
+    case 5:
+      if (blinkTapButton) {
+        blinkTapButton = 0;
+        prevBlinkMs = butMs;
+        blinkCounter = 0;
+        ledblinkbut = 11;
+      }
+      break;
+    // Blink ON. Led On
+    case 11:
+      if ((butMs - prevBlinkMs) > 200ul) {
+        prevBlinkMs = butMs;
+        digitalWrite(LED_BIG_BUTTON , 1);
+        ledblinkbut = 12;
+      }
+      break;
+    // Blink ON. Led Off
+    case 12:
+      if ((butMs - prevBlinkMs) > 100ul) {
+        prevBlinkMs = butMs;
+        digitalWrite(LED_BIG_BUTTON , 0);
+        if (blinkCounter < 16) {
+          blinkCounter++;
+          ledblinkbut = 11;
+        } else {
+          blinkCounter = 0;
+          ledblinkbut = 0;
+        }
+      }
+      break;
+
+  }//  switch(ledblinkbut)
 }//loop()
 
 // -----------------------------------------
