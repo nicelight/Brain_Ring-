@@ -987,9 +987,9 @@ void webPageBuild() {
 
     GP.LABEL("  Счет: ");
     // GP.LABEL("NAN", "label1");
-    GP.LABEL("203", "pointsOf203");
-    GP.LABEL(" : ");
     GP.LABEL("204", "pointsOf204");
+    GP.LABEL(" : ");
+    GP.LABEL("203", "pointsOf203");
     GP.BREAK();
     GP.BREAK();
     GP.BREAK();
