@@ -1417,7 +1417,7 @@ void parsing() {
 
         //Добавление для Brain Ring 2024
         // если выбран эффект моноцвет
-        if((intData[1]==0) && (intData[2] == 1)){
+        if((intData[1]==0) && (intData[2] == 44)){
           blinkTapButton = 1; // флаг чтобы помигать кнопкой 
         }
         
