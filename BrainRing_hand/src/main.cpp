@@ -92,7 +92,10 @@ const char GET_ServerAddress[] = "http://192.168.3.202/win&";
 char GETparamCHAR[7] = "PL=1"; // для тестов GET на потолок
 char UDPparamCHAR[8] = "$8 0 1;"; // для тестов UDP кнопкам 
 
-// #define HTTPDEBUG // дебажим GET коннекшны с потолком
+const char GET_MediaServer[] = "http://192.168.3.210:8080/requests/playlist.xml?command=pl_play&id=";
+uint16_t media_203 = 4; // номер трека в плейлисте. он там по идее с четверочки начинается
+uint16_t media_204 = 5;
+#define HTTPDEBUG // дебажим GET коннекшны
 
 // структура настроек
 struct Settings {
@@ -103,6 +106,8 @@ struct Settings {
   uint16_t afterFocusDel = 100;
   // uint16_t sld = 1;
   ////////////// основные настройки игры
+  bool useRoof = 1; // использовать ли потолок
+  bool useMedia = 1; // использовать ли музыкальное сопровождение
   uint32_t StartGameDelay = 5000;   // время отрисовки анимации на старте игры
   uint32_t AnswerReactDelay = 4000; // время отрисовки реакции на прав\неправ ответ 
   uint32_t FanfariDelay = 4000; // отрисовка фанфар
@@ -322,86 +327,9 @@ void makePhoto() {
 }// makePhoto()
 
 
-#ifdef USEASYNCHTTP
+// клиент HTTP (обычный, не глючный async)
 // отправка GET | POST запроса на потолок 
 void sendGETRequest(char* getParam1) {
-  static bool requestOpenResult;
-  if (request.readyState() == readyStateUnsent || request.readyState() == readyStateDone) {
-
-    // пример отправка GET запроса
-    //requestOpenResult = request.open("GET", "http://worldtimeapi.org/api/timezone/Europe/London.txt");
-
-    String GETData = "";
-    GETData += getParam1;
-#ifdef HTTPDEBUG
-    Serial.print("\n new char* GET: ");
-    Serial.print(GET_ServerAddress);
-    Serial.print(GETData);
-#endif
-    requestOpenResult = request.open("GET", (GET_ServerAddress + GETData).c_str());
-
-    if (requestOpenResult) {
-      // Only send() if open() returns true, or crash
-      request.send();
-    } else Serial.println(F("Can't send bad request"));
-  } else Serial.println(F("Can't send request"));
-}//sendGETRequest()
-
-
-
-// отправка GET | POST запроса на потолок 
-//в коде есть вот такая через передачу самого запроса аргументом
-// void sendGETRequest(char* getParam1) {
-  // а есть вот такая, через 2 параметра, которые застрингятся внутри
-void sendParamGET(uint8_t type, uint16_t param) {
-  static bool requestOpenResult;
-  if (request.readyState() == readyStateUnsent || request.readyState() == readyStateDone) {
-    // пример отправка GET запроса
-    //requestOpenResult = request.open("GET", "http://worldtimeapi.org/api/timezone/Europe/London.txt");
-
-    String GETData = "";
-
-    switch (type) {
-      // 1 -- отправляем на потолок яркость A=1
-    case 1:
-      GETData = "A=" + String(param);
-      break;
-      // 2 -- отправляем на потолок номер эффекта PL=1
-    case 2:
-      GETData = "PL=" + String(param);
-      break;
-    }
-    GETData = GET_ServerAddress + GETData;
-#ifdef HTTPDEBUG
-    Serial.print("\nsending param GET: ");
-    Serial.print(GET_ServerAddress);
-    Serial.print(GETData);
-#endif
-    for (int i = 0; i < 3; i++) {
-      // requestOpenResult = request.open("GET", (GET_ServerAddress + GETData).c_str());
-      requestOpenResult = request.open("GET", GETData.c_str());
-      if (requestOpenResult) {
-        // Only send() if open() returns true, or crash
-        request.send();
-        i = 5;
-      } else {
-        Serial.print(F("Can't send GET "));
-        Serial.print(i);
-        Serial.println(F("-th time. Bad request"));
-        Serial.print("\nGET req.: ");
-        Serial.print(GETData);
-        delay(1000);
-      }
-    }//for 5 times
-  } else Serial.println(F("Can't send GET - Req. sender not ready"));
-}//send_NEW_GETRequest()
-
-#else 
-// обычный не async клиент HTTP
-// отправка GET | POST запроса на потолок 
-void sendGETRequest(char* getParam1) {
-
-
   String GETData = GET_ServerAddress;
   GETData += getParam1;
 #ifdef HTTPDEBUG
@@ -431,9 +359,50 @@ void sendGETRequest(char* getParam1) {
   }//for
 }//sendGETRequest()
 
+// GET запрос медиа серверу с VLC player
+void GETtoMedia(uint16_t param) {
+  // формируем строку отправки на медиа сервер
+  // http://192.168.3.210:8080/requests/playlist.xml?command=pl_play&id= 4
+  String GETData = GET_MediaServer + String(param);
+#ifdef HTTPDEBUG
+  Serial.print(GETData);
+  Serial.print("\n");
+#endif
+  for (int i = 0; i < 3; i++) {
+    Serial.print("\n sending param GET: ");
+
+    HTTPClient http;
+    http.begin(GETData); //HTTP
+    http.setAuthorization("", "123456789123456789"); // защищенное соединение, пароль указываем
+    int httpCode = http.GET();
+
+    // httpCode will be negative on error
+    if (httpCode > 0) {
+      // file found at server
+      if (httpCode == HTTP_CODE_OK || httpCode == HTTP_CODE_MOVED_PERMANENTLY) {
+        i = 3;
+        String payload = http.getString();
+#ifdef HTTPDEBUG    
+        Serial.println(payload);
+#endif  
+        // // parsing GET response
+        // int contentStart = payload.indexOf("\" du") - 1;
+        // int contentEnd = payload.indexOf("\" du");
+        // String content = payload.substring(contentStart, contentEnd);
+        // // пытаемся найти первый здравый айдишник песни
+        // int firstSongIDis = content.toInt();
+      } else {
+        Serial.printf(" sending GET err: %s\n", http.errorToString(httpCode).c_str());
+        delay(700);
+      }
+    }
+    http.end();
+  }//for 5 times
+}//GETtoMedia()
 
 
 
+// GET запрос на потолок с параметрами
 void sendParamGET(uint8_t type, uint16_t param) {
   String GETData = GET_ServerAddress;
   switch (type) {
@@ -468,6 +437,7 @@ void sendParamGET(uint8_t type, uint16_t param) {
 #ifdef HTTPDEBUG    
         Serial.println(payload);
 #endif  
+        // parsing GET response
         int contentStart = payload.indexOf("ac>");
         int contentEnd = payload.indexOf("</ac");
         String content = payload.substring(contentStart + 3, contentEnd);
@@ -481,7 +451,6 @@ void sendParamGET(uint8_t type, uint16_t param) {
     http.end();
   }//for 5 times
 }//sendParamGET()
-
 
 
 // GET запрос и распарсивание яркости потолка 
@@ -513,7 +482,6 @@ uint8_t getRoofDim() {
   return 30; // отдадим предположительную яркость 30, так как не получили ответ от 
 }//sendGETRequest()
 
-#endif
 
 // обработчик HTTP ответа от сервера ( от WLED потолка )
 void parseHTTPResponse(String responseText) {
@@ -530,8 +498,6 @@ void parseHTTPResponse(String responseText) {
 
   Serial.print("\n\nAC content is: ");
   Serial.println(content.toInt());
-  Serial.println("roofBrightness: ");
-  Serial.println(roofBrightness);
   Serial.print("\n\n");
 #endif
 }
@@ -847,7 +813,7 @@ void webPageBuild() {
 
   // главная страница, корень, "/"
   else {
-    GP.UPDATE("label1,label2,hh,mm,ss,gameled,GameStarted,pointsOf203,pointsOf204,HandWorks,roofBrightness,handLevel,handCurrent,handLevel_gap ");// какие поля нужно обновлять
+    GP.UPDATE("label1,label2,hh,mm,ss,gameled,GameStarted,pointsOf203,pointsOf204,HandWorks,roofBrightness,handLevel,handCurrent,handLevel_gap,rad_203,rad_204,useRoof,useMedia");// какие поля нужно обновлять
 
     GP.PAGE_TITLE("Nicelight");
     GP.NAV_TABS_M("nav1", "Релакс,Игра,Дискотека,.", COLORTHEMERELAX);
@@ -978,6 +944,22 @@ void webPageBuild() {
     GP.LABEL("Идет игра: ");
     GP.SWITCH("GameStarted", gameIs, COLORTHEMEGAME);
     GP.BOX_END();
+    GP.BREAK();
+    GP.LABEL("Звуковой отклик команд");
+    GP.BREAK();
+    GP.LABEL("204:");
+    GP.BREAK();
+    GP.RADIO("rad_204", 4, media_204, "#e10ec9"); GP.LABEL("1"); GP.BREAK();
+    GP.RADIO("rad_204", 5, media_204, "#e10ec9"); GP.LABEL("2"); GP.BREAK();
+    GP.RADIO("rad_204", 6, media_204, "#e10ec9"); GP.LABEL("3"); GP.BREAK();
+    GP.RADIO("rad_204", 7, media_204, "#e10ec9"); GP.LABEL("4"); GP.BREAK();
+    GP.BREAK();
+    GP.LABEL("203:");
+    GP.BREAK();
+    GP.RADIO("rad_203", 4, media_203, "#0e86e1"); GP.LABEL("1"); GP.BREAK();
+    GP.RADIO("rad_203", 5, media_203, "#0e86e1"); GP.LABEL("2"); GP.BREAK();
+    GP.RADIO("rad_203", 6, media_203, "#0e86e1"); GP.LABEL("3"); GP.BREAK();
+    GP.RADIO("rad_203", 7, media_203, "#0e86e1"); GP.LABEL("4"); GP.BREAK();
     GP.BREAK();
     GP.BREAK();
     GP.BUTTON("StartGame", "СТАРТ", "", COLORTHEMEGAME);
@@ -1110,6 +1092,16 @@ void webPageBuild() {
     GP.NUMBER("uigameOverDelay", "number", sett.gameOverDelay);
     GP.LABEL(" мс");
     GP.BREAK();
+    GP.BOX_BEGIN(GP_JUSTIFY);
+    GP.LABEL("Использовать Медиа:");
+    GP.SWITCH("useMedia", sett.useMedia);
+    GP.BOX_END();
+    GP.BREAK();
+    GP.BOX_BEGIN(GP_JUSTIFY);
+    GP.LABEL("Исползвать потолок:");
+    GP.SWITCH("useRoof", sett.useRoof);
+    GP.BOX_END();
+    GP.BREAK();
     GP.BREAK();
     GP.BLOCK_END(); // блок с зеленым заголовком ИГРА
 
@@ -1222,6 +1214,11 @@ void webPageAction() {
     //  игровой процесс
     ui.updateBool("GameStarted", gameIs);
     ui.updateBool("HandWorks", allowHand);
+    ui.updateInt("rad_203", media_203);
+    ui.updateInt("rad_204", media_204);
+    ui.updateBool("useRoof", sett.useRoof);
+    ui.updateBool("useMedia", sett.useMedia);
+
     // датчик руки 
     ui.updateInt("handLevel", handLevel);
     ui.updateInt("handCurrent", handCurrent);
@@ -1238,6 +1235,7 @@ void webPageAction() {
 
   if (ui.click()) {
     Serial.println("UI CLICK detected");
+
 
     // кнопки зоны RELAX - потолок
     if (ui.click("relaxRoofef1")) {
@@ -1368,6 +1366,7 @@ void webPageAction() {
 
 
     // кнопки для игры
+
     //переключатель игру включить
     if (ui.clickBool("GameStarted", gameIs)) {
       if (gameIs) allowHand = 0; // запретим прикладывать руку
@@ -1375,6 +1374,13 @@ void webPageAction() {
         game_proc = INIT;
         allowHand = 1;
       }
+    }
+    // обновление звуков для игры
+    if (ui.clickInt("rad_203", media_203)) {
+      GETtoMedia(media_203);
+    }
+    if (ui.clickInt("rad_204", media_204)) {
+      GETtoMedia(media_204);
     }
     if (ui.click("StartGame")) {
       gameIs = 1; // игру начнем
@@ -1506,6 +1512,8 @@ void webPageAction() {
     if (ui.clickInt("uiFanfariDelay", sett.FanfariDelay))  memory.updateNow();
     if (ui.clickInt("uigameOverDelay", sett.gameOverDelay))  memory.updateNow();
     if (ui.clickInt("uiButtonsDisabled", sett.buttonsDisabled))  memory.updateNow();
+    if (ui.clickBool("useRoof", sett.useRoof)) memory.updateNow();
+    if (ui.clickBool("useMedia", sett.useMedia)) memory.updateNow();
 
     ////////// тонкие настройки игры 
     // Потолок обновляем в память параметры игры
@@ -1690,9 +1698,9 @@ void parseUdpMsg() {
       Serial.printf("Button: %i\n", whatButton);
 #endif
       udp.flush(); // важно чистить буфер после прочтения
-    }//read
-  }//if packet
-}//parseUdpMsg()
+      }//read
+    }//if packet
+  }//parseUdpMsg()
 
 
 void pinsBegin() {
@@ -2164,13 +2172,8 @@ void loop() {
       delay(50);
     }
     // // отправим на потолок команду.
-    // старый вариант
-    // strcpy(GETparamCHAR, "PL=42");
-    // sendGETRequest(GETparamCHAR);
-
-    // новый вариант
     // sendParamGET(1, sett.Roof_start_dim);   // 1 -- A=xxx, 2 -- PL=xxx
-    sendParamGET(2, sett.Roof_start_ef);    // 
+    if(sett.useRoof) sendParamGET(2, sett.Roof_start_ef);    // 
     game_proc = STARTDEL;
     pointsOf203 = 0;
     pointsOf204 = 0;
@@ -2202,7 +2205,7 @@ void loop() {
     }
     // //потолок белый
     // sendParamGET(1, sett.Roof_round_dim);
-    sendParamGET(2, sett.Roof_round_ef);
+    if(sett.useRoof) sendParamGET(2, sett.Roof_round_ef);
     whatButton = 0; // кто именно нажал
     buttonsAllowed = 1; // разрешаем нажатия на кнопки 
     areWin = 0; // сброс флага ответа от тамады
@@ -2222,10 +2225,12 @@ void loop() {
     //пришло нажатие от 203 или 204
     else if (whatButton) {
       if (whatButton == 203) {
-        //мигнем поярче моноцветом
+        // дилинькаем на медиасервере
+        if(sett.useMedia) GETtoMedia(media_203);
+        //отправим сигнал чтобы кнопка визуально мигала сверху 
         strUdp = "$4 0 200;";  //  яркость
         sendStringUDP(whatButton, strUdp);
-        strUdp = "$8 0 1;"; // моноцвет - FLASH
+        strUdp = "$8 0 44;"; // 44й эффект - сигнальный для GyverPanel
         sendStringUDP(whatButton, strUdp);
         delay(50);
         for (uint8_t i = 0; i < 2; i++) {
@@ -2239,14 +2244,16 @@ void loop() {
           delay(50);
         }
         // //отправляем на потолок
-        sendParamGET(2, sett.Roof_203Answer_ef);    // 1 -- A=xxx, 2 -- PL=xxx
+        if(sett.useRoof) sendParamGET(2, sett.Roof_203Answer_ef);    // 1 -- A=xxx, 2 -- PL=xxx
       }//if 203
       // нажатие от 204
       else if (whatButton == 204) {
-        //мигнем поярче моноцветом
+         // дилинькаем на медиасервере
+        if(sett.useMedia) GETtoMedia(media_204);
+       //отправим сигнал чтобы кнопка визуально мигала сверху 
         strUdp = "$4 0 200;";  //  яркость
         sendStringUDP(whatButton, strUdp);
-        strUdp = "$8 0 1;"; // моноцвет - FLASH
+        strUdp = "$8 0 44;"; // 44й эффект - сигнальный для GyverPanel
         sendStringUDP(whatButton, strUdp);
         delay(50);
         for (uint8_t i = 0; i < 2; i++) {
@@ -2260,7 +2267,7 @@ void loop() {
           delay(50);
         }
         // //отправляем на потолок
-        sendParamGET(2, sett.Roof_204Answer_ef);    // 1 -- A=xxx, 2 -- PL=xxx 
+        if(sett.useRoof) sendParamGET(2, sett.Roof_204Answer_ef);    // 1 -- A=xxx, 2 -- PL=xxx 
       }//if 204
       whatButton = 0; // чтобы снова не прорисовывать эффект нажатия
       buttonsAllowed = 0; // кнопки не реагируют  установленное время
@@ -2296,7 +2303,7 @@ void loop() {
         delay(50);
       }
       // на потолок
-      sendParamGET(2, sett.Roof_203trues_ef);          // 1 -- A=xxx, 2 -- PL=xxx
+      if(sett.useRoof) sendParamGET(2, sett.Roof_203trues_ef);          // 1 -- A=xxx, 2 -- PL=xxx
     } else if (whatButton == 204) {
       // правильно ответили 204ые
       pointsOf204++; // добавим одно очко команде
@@ -2311,7 +2318,7 @@ void loop() {
         delay(50);
       }
       // потолок
-      sendParamGET(2, sett.Roof_204trues_ef);    // 1 -- A=xxx, 2 -- PL=xxx 
+      if(sett.useRoof) sendParamGET(2, sett.Roof_204trues_ef);    // 1 -- A=xxx, 2 -- PL=xxx 
     }
     gameMs = ms;
     game_proc = ANSWERRESULTDEL;
@@ -2343,7 +2350,7 @@ void loop() {
     game_proc = FANFAREDEL;
     // потолок фанфары
     // sendParamGET(1, sett.Roof_fanfar_dim);   // 1 -- A=xxx, 2 -- PL=xxx
-    sendParamGET(2, sett.Roof_fanfar_ef);    // 
+    if(sett.useRoof) sendParamGET(2, sett.Roof_fanfar_ef);    // 
     break;
   case FANFAREDEL:
     if ((ms - gameMs) > sett.FanfariDelay) {
@@ -2396,7 +2403,7 @@ void loop() {
     // strcpy(GETparamCHAR, "PL=2");
     // на потолок  победа
     // sendParamGET(1, sett.Roof_wins_dim);   // 1 -- A=xxx, 2 -- PL=xxx
-    sendParamGET(2, sett.Roof_wins1_ef);    // 
+    if(sett.useRoof) sendParamGET(2, sett.Roof_wins1_ef);    // 
     gameMs = ms;
     game_proc = GAMEOVER2;
     break;
@@ -2446,7 +2453,7 @@ void loop() {
       // strcpy(GETparamCHAR, "PL=2");
       // на потолок  победа
       // sendParamGET(1, sett.Roof_wins_dim);   // 1 -- A=xxx, 2 -- PL=xxx
-      sendParamGET(2, sett.Roof_wins2_ef);    // 
+      if(sett.useRoof) sendParamGET(2, sett.Roof_wins2_ef);    // 
       gameMs = ms;
       game_proc = GAMEOVER3;
     }
@@ -2497,7 +2504,7 @@ void loop() {
       // strcpy(GETparamCHAR, "PL=2");
       // на потолок  победа
       // sendParamGET(1, sett.Roof_wins_dim);   // 1 -- A=xxx, 2 -- PL=xxx
-      sendParamGET(2, sett.Roof_wins3_ef);    // 
+      if(sett.useRoof) sendParamGET(2, sett.Roof_wins3_ef);    // 
       gameMs = ms;
       game_proc = GAMEOVERSTOP;
     }
