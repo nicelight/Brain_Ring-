@@ -953,6 +953,8 @@ void webPageBuild() {
     GP.RADIO("rad_204", 5, media_204, "#e10ec9"); GP.LABEL("2"); GP.BREAK();
     GP.RADIO("rad_204", 6, media_204, "#e10ec9"); GP.LABEL("3"); GP.BREAK();
     GP.RADIO("rad_204", 7, media_204, "#e10ec9"); GP.LABEL("4"); GP.BREAK();
+    GP.RADIO("rad_204", 8, media_204, "#e10ec9"); GP.LABEL("5"); GP.BREAK();
+    GP.RADIO("rad_204", 9, media_204, "#e10ec9"); GP.LABEL("6"); GP.BREAK();
     GP.BREAK();
     GP.LABEL("203:");
     GP.BREAK();
@@ -960,6 +962,8 @@ void webPageBuild() {
     GP.RADIO("rad_203", 5, media_203, "#0e86e1"); GP.LABEL("2"); GP.BREAK();
     GP.RADIO("rad_203", 6, media_203, "#0e86e1"); GP.LABEL("3"); GP.BREAK();
     GP.RADIO("rad_203", 7, media_203, "#0e86e1"); GP.LABEL("4"); GP.BREAK();
+    GP.RADIO("rad_203", 8, media_203, "#0e86e1"); GP.LABEL("5"); GP.BREAK();
+    GP.RADIO("rad_203", 9, media_203, "#0e86e1"); GP.LABEL("6"); GP.BREAK();
     GP.BREAK();
     GP.BREAK();
     GP.BUTTON("StartGame", "СТАРТ", "", COLORTHEMEGAME);
@@ -1698,9 +1702,9 @@ void parseUdpMsg() {
       Serial.printf("Button: %i\n", whatButton);
 #endif
       udp.flush(); // важно чистить буфер после прочтения
-      }//read
-    }//if packet
-  }//parseUdpMsg()
+    }//read
+  }//if packet
+}//parseUdpMsg()
 
 
 void pinsBegin() {
@@ -2173,7 +2177,9 @@ void loop() {
     }
     // // отправим на потолок команду.
     // sendParamGET(1, sett.Roof_start_dim);   // 1 -- A=xxx, 2 -- PL=xxx
-    if(sett.useRoof) sendParamGET(2, sett.Roof_start_ef);    // 
+    if (sett.useRoof) sendParamGET(2, sett.Roof_start_ef);    // 
+    // звук запуска игры 
+    if (sett.useMedia) GETtoMedia(10);
     game_proc = STARTDEL;
     pointsOf203 = 0;
     pointsOf204 = 0;
@@ -2205,7 +2211,7 @@ void loop() {
     }
     // //потолок белый
     // sendParamGET(1, sett.Roof_round_dim);
-    if(sett.useRoof) sendParamGET(2, sett.Roof_round_ef);
+    if (sett.useRoof) sendParamGET(2, sett.Roof_round_ef);
     whatButton = 0; // кто именно нажал
     buttonsAllowed = 1; // разрешаем нажатия на кнопки 
     areWin = 0; // сброс флага ответа от тамады
@@ -2226,7 +2232,7 @@ void loop() {
     else if (whatButton) {
       if (whatButton == 203) {
         // дилинькаем на медиасервере
-        if(sett.useMedia) GETtoMedia(media_203);
+        if (sett.useMedia) GETtoMedia(media_203);
         //отправим сигнал чтобы кнопка визуально мигала сверху 
         strUdp = "$4 0 200;";  //  яркость
         sendStringUDP(whatButton, strUdp);
@@ -2244,13 +2250,13 @@ void loop() {
           delay(50);
         }
         // //отправляем на потолок
-        if(sett.useRoof) sendParamGET(2, sett.Roof_203Answer_ef);    // 1 -- A=xxx, 2 -- PL=xxx
+        if (sett.useRoof) sendParamGET(2, sett.Roof_203Answer_ef);    // 1 -- A=xxx, 2 -- PL=xxx
       }//if 203
       // нажатие от 204
       else if (whatButton == 204) {
-         // дилинькаем на медиасервере
-        if(sett.useMedia) GETtoMedia(media_204);
-       //отправим сигнал чтобы кнопка визуально мигала сверху 
+        // дилинькаем на медиасервере
+        if (sett.useMedia) GETtoMedia(media_204);
+        //отправим сигнал чтобы кнопка визуально мигала сверху 
         strUdp = "$4 0 200;";  //  яркость
         sendStringUDP(whatButton, strUdp);
         strUdp = "$8 0 44;"; // 44й эффект - сигнальный для GyverPanel
@@ -2267,7 +2273,7 @@ void loop() {
           delay(50);
         }
         // //отправляем на потолок
-        if(sett.useRoof) sendParamGET(2, sett.Roof_204Answer_ef);    // 1 -- A=xxx, 2 -- PL=xxx 
+        if (sett.useRoof) sendParamGET(2, sett.Roof_204Answer_ef);    // 1 -- A=xxx, 2 -- PL=xxx 
       }//if 204
       whatButton = 0; // чтобы снова не прорисовывать эффект нажатия
       buttonsAllowed = 0; // кнопки не реагируют  установленное время
@@ -2290,6 +2296,9 @@ void loop() {
     break;
 
   case RIGHTANSWER:
+    // муз сопровождение
+    if (sett.useMedia) GETtoMedia(11);
+    // кто победил?
     if (whatButton == 203) {
       pointsOf203++; // добавим одно очко команде
       for (uint8_t i = 0; i < 2; i++) {
@@ -2303,7 +2312,7 @@ void loop() {
         delay(50);
       }
       // на потолок
-      if(sett.useRoof) sendParamGET(2, sett.Roof_203trues_ef);          // 1 -- A=xxx, 2 -- PL=xxx
+      if (sett.useRoof) sendParamGET(2, sett.Roof_203trues_ef);          // 1 -- A=xxx, 2 -- PL=xxx
     } else if (whatButton == 204) {
       // правильно ответили 204ые
       pointsOf204++; // добавим одно очко команде
@@ -2318,7 +2327,7 @@ void loop() {
         delay(50);
       }
       // потолок
-      if(sett.useRoof) sendParamGET(2, sett.Roof_204trues_ef);    // 1 -- A=xxx, 2 -- PL=xxx 
+      if (sett.useRoof) sendParamGET(2, sett.Roof_204trues_ef);    // 1 -- A=xxx, 2 -- PL=xxx 
     }
     gameMs = ms;
     game_proc = ANSWERRESULTDEL;
@@ -2334,6 +2343,8 @@ void loop() {
 
   case FANFARE:
     // фанфары ( рекламная пауза )
+    // звук отправим 
+    if (sett.useMedia) GETtoMedia(12);
     for (uint8_t i = 0; i < 2; i++) {
       // strUdp = "$4 0 250;";  // снег 203их
       strUdp = "$4 0 " + String(sett.Btn_Fanfars_dim) + ";";  // снег 203их
@@ -2350,7 +2361,7 @@ void loop() {
     game_proc = FANFAREDEL;
     // потолок фанфары
     // sendParamGET(1, sett.Roof_fanfar_dim);   // 1 -- A=xxx, 2 -- PL=xxx
-    if(sett.useRoof) sendParamGET(2, sett.Roof_fanfar_ef);    // 
+    if (sett.useRoof) sendParamGET(2, sett.Roof_fanfar_ef);    // 
     break;
   case FANFAREDEL:
     if ((ms - gameMs) > sett.FanfariDelay) {
@@ -2359,6 +2370,8 @@ void loop() {
     }
     break;
   case GAMEOVER1:
+    // звук победы 
+    if (sett.useMedia) GETtoMedia(13);
     //победили 203ие
     if (pointsOf203 > pointsOf204) {
       for (uint8_t i = 0; i < 2; i++) {
@@ -2403,7 +2416,7 @@ void loop() {
     // strcpy(GETparamCHAR, "PL=2");
     // на потолок  победа
     // sendParamGET(1, sett.Roof_wins_dim);   // 1 -- A=xxx, 2 -- PL=xxx
-    if(sett.useRoof) sendParamGET(2, sett.Roof_wins1_ef);    // 
+    if (sett.useRoof) sendParamGET(2, sett.Roof_wins1_ef);    // 
     gameMs = ms;
     game_proc = GAMEOVER2;
     break;
@@ -2453,7 +2466,7 @@ void loop() {
       // strcpy(GETparamCHAR, "PL=2");
       // на потолок  победа
       // sendParamGET(1, sett.Roof_wins_dim);   // 1 -- A=xxx, 2 -- PL=xxx
-      if(sett.useRoof) sendParamGET(2, sett.Roof_wins2_ef);    // 
+      if (sett.useRoof) sendParamGET(2, sett.Roof_wins2_ef);    // 
       gameMs = ms;
       game_proc = GAMEOVER3;
     }
@@ -2504,7 +2517,7 @@ void loop() {
       // strcpy(GETparamCHAR, "PL=2");
       // на потолок  победа
       // sendParamGET(1, sett.Roof_wins_dim);   // 1 -- A=xxx, 2 -- PL=xxx
-      if(sett.useRoof) sendParamGET(2, sett.Roof_wins3_ef);    // 
+      if (sett.useRoof) sendParamGET(2, sett.Roof_wins3_ef);    // 
       gameMs = ms;
       game_proc = GAMEOVERSTOP;
     }
