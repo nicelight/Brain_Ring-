@@ -205,7 +205,10 @@ id шники треков для песен:
 ## 4 Пульт диджея для VLC плеера 
 Пульт представляет из себя отдельную esp32 плату с 6ю кнопоками ( можно и больше) которые по вайфаю активируют в VLC плеере треки № 14-19
 ![Исходный код пульта](https://github.com/nicelight/Brain_Ring-/blob/main/BrainRing_hand/src/main-remote-sounds.cpp)
+
 Кнопки подключаются к пинам 4,5,16,17,18,19
+
+Файл прошивки качать ![здесь](https://github.com/nicelight/Brain_Ring-/blob/main/BrainRing_hand/src/firmware_remote.bin), нажмите Ctrl + Shift + S
 
 
 
